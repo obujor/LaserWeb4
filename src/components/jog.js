@@ -23,11 +23,13 @@ import Toggle from 'react-toggle';
 import { Label } from 'react-bootstrap'
 import { bindKeys, unbindKeys } from './keyboard'
 import Gamepad from 'gamepad.js';
+import { OmrJog } from './omr';
 
 var ovStep = 1;
 var ovLoop;
 var playing = false;
 var paused = false;
+var m0 = false;
 
 $('body').on('keydown', function (ev) {
     if (ev.keyCode === 17) {
@@ -62,9 +64,11 @@ class Jog extends React.Component {
             jogFeedZ: jogFeedZ,
 
             liveJogging: liveJoggingState,
+            joggingDisabled: (playing && !m0),
 
             isPlaying: playing,
             isPaused: paused,
+            isM0: m0,
             
             machineZEnabled: machineZEnabled,
             machineAEnabled: machineAEnabled,
@@ -120,6 +124,22 @@ class Jog extends React.Component {
                     }
                     
                 }.bind(this));
+                this.gamepad.on('hold','stick_axis_right',function(e){
+                    let now=new Date();
+                    if ((now.getTime()-time.getTime())>200){
+                        time = now;
+                        let [a,z] = e.value;
+                        let jogF = this.props.settings.jogFeedZ * ((this.props.settings.toolFeedUnits === 'mm/min') ? 1 : 60);
+                        let jogA = (Math.abs(a)>0.05) ?  ((a>0) ? +1:-1) : 0;
+                        let jogZ = (Math.abs(z)>0.05) ?  ((z>0) ? -1:+1) : 0;
+                        if (jogA){
+                            //not implemented
+                        }
+                        if (jogZ){
+                            jogTo(undefined, undefined, jogZ, true,  Math.floor(a)*jogF);
+                        }
+                    }
+                }.bind(this));
             } else {
                 this.gamepad.resume(); 
             }
@@ -142,45 +162,45 @@ class Jog extends React.Component {
 
     jogRight(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('X', '+')
+        if (!playing || m0) this.jog('X', '+')
     }
 
 
     jogLeft(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('X', '-')
+        if (!playing || m0) this.jog('X', '-')
     }
 
 
     jogUp(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('Y', '+')
+        if (!playing || m0) this.jog('Y', '+')
     }
 
 
     jogDown(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('Y', '-')
+        if (!playing || m0) this.jog('Y', '-')
     }
 
     jogZUp(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('Z', '+')
+        if (!playing || m0) this.jog('Z', '+')
     }
 
     jogZDown(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('Z', '-')
+        if (!playing || m0) this.jog('Z', '-')
     }
 
     jogAplus(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('A', '+')
+        if (!playing || m0) this.jog('A', '+')
     }
 
     jogAminus(event) {
         event.preventDefault();
-        if (!playing && !paused) this.jog('A', '-')
+        if (!playing || m0) this.jog('A', '-')
     }
 
     escapeX( event ) {
@@ -283,6 +303,11 @@ class Jog extends React.Component {
         setZero(axis);
     }
 
+    setPosition(pos) {
+        console.log('setPosition(' + JSON.stringify(pos) + ')');
+        setPosition(pos)
+    }
+
     gotoZero(axis) {
         console.log('gotoZero(' + axis + ')');
         gotoZero(axis);
@@ -290,7 +315,11 @@ class Jog extends React.Component {
 
     checkSize() {
         console.log('checkSize');
-        let feedrate = $('#jogfeedxy').val() * 60;
+        let units = this.props.settings.toolFeedUnits;
+        let feedrate, mult = 1;
+        if (units == 'mm/s') mult = 60;
+        feedrate = jQuery('#jogfeedxy').val() * mult;
+
         let gcode = this.props.gcode;
         
         //let linemoves = gcode.split(/g[13]/i);
@@ -438,6 +467,7 @@ class Jog extends React.Component {
         let { settings, dispatch } = this.props;
         const machineZEnabled = this.state.machineZEnabled;
         const machineAEnabled = this.state.machineAEnabled;
+        const jogDisabled = playing && !m0;
 
         return (
             <div style={{ paddingTop: 6 }} >
@@ -659,7 +689,7 @@ class Jog extends React.Component {
                                             </button>
                                         </td>
                                         <td>
-                                            <button style={{ backgroundColor: '#dbffdf' }} id="yP" type="button" data-title="Jog Y+" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogUp.bind(this)}>
+                                            <button style={{ backgroundColor: '#dbffdf' }} id="yP" type="button" data-title="Jog Y+" className="btn btn-ctl btn-default" onClick={this.jogUp.bind(this)}>
                                                 <span className="fa-stack fa-1x">
                                                     <i className="fa fa-arrow-up fa-stack-1x"></i>
                                                     <strong className="fa-stack-1x icon-top-text">Y+</strong>
@@ -668,7 +698,7 @@ class Jog extends React.Component {
                                             </button>
                                         </td>
                                         <td>
-                                            <button id="motorsOff" type="button" data-title="Motors Off" className="btn btn-ctl btn-default" style={{ display: 'none' }} disabled={playing || paused} onClick={(e) => { this.motorsOff(e) }}>
+                                            <button id="motorsOff" type="button" data-title="Motors Off" className="btn btn-ctl btn-default" style={{ display: 'none' }} onClick={(e) => { this.motorsOff(e) }}>
                                                 <span className="fa-stack fa-1x">
                                                     <i className="fa fa-power-off fa-stack-1x"></i>
                                                     <strong className="fa-stack-1x icon-top-text">Motors</strong>
@@ -679,7 +709,7 @@ class Jog extends React.Component {
                                         <td></td>
                                         {machineAEnabled && (
                                             <td>
-                                                <button style={{ backgroundColor: '#fffbcf' }} id="aP" type="button" data-title="Jog A+" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogAplus.bind(this)}>
+                                                <button style={{ backgroundColor: '#fffbcf' }} id="aP" type="button" data-title="Jog A+" className="btn btn-ctl btn-default" onClick={this.jogAplus.bind(this)}>
                                                     <span className="fa-stack fa-1x"><i className="fa fa-arrow-up fa-stack-1x"></i>
                                                         <strong className="fa-stack-1x icon-top-text">A+</strong>
                                                         <strong className="fa-stack-1x stepsizeval icon-bot-text">{this.state.jogStepsize}mm</strong>
@@ -689,7 +719,7 @@ class Jog extends React.Component {
                                         )}
                                         {machineZEnabled && (
                                             <td>
-                                                <button style={{ backgroundColor: '#dbe8ff' }} id="zP" type="button" data-title="Jog Z+" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogZUp.bind(this)}>
+                                                <button style={{ backgroundColor: '#dbe8ff' }} id="zP" type="button" data-title="Jog Z+" className="btn btn-ctl btn-default" onClick={this.jogZUp.bind(this)}>
                                                     <span className="fa-stack fa-1x"><i className="fa fa-arrow-up fa-stack-1x"></i>
                                                         <strong className="fa-stack-1x icon-top-text">Z+</strong>
                                                         <strong className="fa-stack-1x stepsizeval icon-bot-text">{this.state.jogStepsize}mm</strong>
@@ -703,7 +733,7 @@ class Jog extends React.Component {
                                     </tr>
                                     <tr>
                                         <td>
-                                            <button style={{ backgroundColor: '#ffdbdb' }} id="xM" type="button" data-title="Jog X-" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogLeft.bind(this)}>
+                                            <button style={{ backgroundColor: '#ffdbdb' }} id="xM" type="button" data-title="Jog X-" className="btn btn-ctl btn-default" onClick={this.jogLeft.bind(this)}>
                                                 <span className="fa-stack fa-1x">
                                                     <i className="fa fa-arrow-left fa-stack-1x"></i>
                                                     <strong className="fa-stack-1x icon-top-text">X-</strong>
@@ -712,7 +742,7 @@ class Jog extends React.Component {
                                             </button>
                                         </td>
                                         <td>
-                                            <button style={{ backgroundColor: '#dbffdf' }} id="yM" type="button" data-title="Jog Y-" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogDown.bind(this)}>
+                                            <button style={{ backgroundColor: '#dbffdf' }} id="yM" type="button" data-title="Jog Y-" className="btn btn-ctl btn-default" onClick={this.jogDown.bind(this)}>
                                                 <span className="fa-stack fa-1x">
                                                     <i className="fa fa-arrow-down fa-stack-1x"></i>
                                                     <strong className="fa-stack-1x icon-top-text">Y-</strong>
@@ -721,7 +751,7 @@ class Jog extends React.Component {
                                             </button>
                                         </td>
                                         <td>
-                                            <button style={{ backgroundColor: '#ffdbdb' }} id="xP" type="button" data-title="Jog X+" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogRight.bind(this)}>
+                                            <button style={{ backgroundColor: '#ffdbdb' }} id="xP" type="button" data-title="Jog X+" className="btn btn-ctl btn-default" onClick={this.jogRight.bind(this)}>
                                                 <span className="fa-stack fa-1x">
                                                     <i className="fa fa-arrow-right fa-stack-1x"></i>
                                                     <strong className="fa-stack-1x icon-top-text">X+</strong>
@@ -734,7 +764,7 @@ class Jog extends React.Component {
                                         </td>
                                         {machineAEnabled && (
                                             <td>
-                                                <button style={{ backgroundColor: '#fffbcf' }} id="aM" type="button" data-title="Jog A-" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogAminus.bind(this)}>
+                                                <button style={{ backgroundColor: '#fffbcf' }} id="aM" type="button" data-title="Jog A-" className="btn btn-ctl btn-default" onClick={this.jogAminus.bind(this)}>
                                                     <span className="fa-stack fa-1x">
                                                         <i className="fa fa-arrow-down fa-stack-1x"></i>
                                                         <strong className="fa-stack-1x icon-top-text">A-</strong>
@@ -745,7 +775,7 @@ class Jog extends React.Component {
                                         )}
                                         {machineZEnabled && (
                                             <td>
-                                                <button style={{ backgroundColor: '#dbe8ff' }} id="zM" type="button" data-title="Jog Z-" className="btn btn-ctl btn-default" disabled={playing || paused} onClick={this.jogZDown.bind(this)}>
+                                                <button style={{ backgroundColor: '#dbe8ff' }} id="zM" type="button" data-title="Jog Z-" className="btn btn-ctl btn-default" onClick={this.jogZDown.bind(this)}>
                                                     <span className="fa-stack fa-1x">
                                                         <i className="fa fa-arrow-down fa-stack-1x"></i>
                                                         <strong className="fa-stack-1x icon-top-text">Z-</strong>
@@ -817,9 +847,10 @@ class Jog extends React.Component {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td colSpan="5">
+                                        <td colSpan="5" className="hr" style={{textAlign:"left"}} >
                                             <LiveJogging {... this.state.liveJogging}
                                             onChange={(v) => this.setState({ liveJogging: { ...this.state.liveJogging, active: v } })} />
+                                            {this.props.settings.toolVideoOMR? <OmrJog onSetPosition={(pos) => this.setPosition(pos)} />:undefined}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -847,24 +878,51 @@ export function runStatus(status) {
         paused = false;
         $('#playicon').removeClass('fa-play');
         $('#playicon').addClass('fa-pause');
+        $('#xP').attr('disabled', true);
+        $('#xM').attr('disabled' ,true);
+        $('#yP').attr('disabled', true);
+        $('#yM').attr('disabled', true);
     } else if (status === 'paused') {
         paused = true;
         $('#playicon').removeClass('fa-pause');
         $('#playicon').addClass('fa-play');
+    } else if (status === 'm0') {
+        paused = true;
+        m0 = true;
+        $('#playicon').removeClass('fa-pause');
+        $('#playicon').addClass('fa-play');
+        $('#xP').attr('disabled', false);
+        $('#xM').attr('disabled' ,false);
+        $('#yP').attr('disabled', false);
+        $('#yM').attr('disabled', false);
     } else if (status === 'resumed') {
         paused = false;
+        m0 = false;
         $('#playicon').removeClass('fa-play');
         $('#playicon').addClass('fa-pause');
+        $('#xP').attr('disabled', true);
+        $('#xM').attr('disabled' ,true);
+        $('#yP').attr('disabled', true);
+        $('#yM').attr('disabled', true);
     } else if (status === 'stopped') {
         playing = false;
         paused = false;
+        m0 = false;
         $('#playicon').removeClass('fa-pause');
         $('#playicon').addClass('fa-play');
+        $('#xP').attr('disabled', false);
+        $('#xM').attr('disabled' ,false);
+        $('#yP').attr('disabled', false);
+        $('#yM').attr('disabled', false);
     } else if (status === 'finished') {
         playing = false;
         paused = false;
         $('#playicon').removeClass('fa-pause');
         $('#playicon').addClass('fa-play');
+        $('#xP').attr('disabled', false);
+        $('#xM').attr('disabled' ,false);
+        $('#yP').attr('disabled', false);
+        $('#yM').attr('disabled', false);
     } else if (status === 'alarm') {
         //socket.emit('clearAlarm', 2);
     }

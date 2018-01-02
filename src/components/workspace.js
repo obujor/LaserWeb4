@@ -20,7 +20,7 @@ import ReactDOM from 'react-dom';
 
 import { GlobalStore } from '..';
 import { setCameraAttrs, zoomArea } from '../actions/camera'
-import { selectDocument, toggleSelectDocument, transform2dSelectedDocuments, removeDocumentSelected } from '../actions/document';
+import { selectDocument, toggleSelectDocument, transform2dSelectedDocuments, removeDocumentSelected, cloneDocumentSelected } from '../actions/document';
 import { setWorkspaceAttrs } from '../actions/workspace';
 import { setSettingsAttrs } from '../actions/settings';
 
@@ -54,6 +54,8 @@ import { ImagePort, ImageEditorButton } from './image-filters'
 import { LiveJogging } from './jog'
 
 import { keyboardLogger, bindKeys, unbindKeys } from './keyboard'
+
+import { arucoProcess } from '../lib/omr.js';
 
 function calcCamera({ viewportWidth, viewportHeight, fovy, near, far, eye, center, up, showPerspective, machineX, machineY }) {
     let perspective;
@@ -616,6 +618,7 @@ class WorkspaceContent extends React.Component {
         super(props);
         this.bindings = [
             [['alt+del', 'meta+backspace'], this.removeSelected.bind(this)],
+            [['ctrl+d'], this.cloneSelected.bind(this)],
         ]
         this.drawDocsState = {};
         this.drawGcodeState = {};
@@ -653,6 +656,13 @@ class WorkspaceContent extends React.Component {
         if (this.props.mode === 'jog') return;
         if (this.props.documents.find((d) => (d.selected)))
             this.props.dispatch(removeDocumentSelected());
+    }
+
+    cloneSelected(e) {
+        e.preventDefault();
+        if (this.props.mode === 'jog') return;
+        if (this.props.documents.find((d) => (d.selected)))
+            this.props.dispatch(cloneDocumentSelected());
     }
 
     setCanvas(canvas) {
@@ -736,8 +746,8 @@ class WorkspaceContent extends React.Component {
         this.grid.draw(this.drawCommands, {
             perspective: this.camera.perspective, view: this.camera.view,
             width: this.props.settings.toolGridWidth, height: this.props.settings.toolGridHeight,
-            minor: this.props.settings.toolGridMinorSpacing,
-            major: this.props.settings.toolGridMajorSpacing,
+            minor: this.props.settings.toolGridMinorSpacing || 0.1,
+            major: this.props.settings.toolGridMajorSpacing || 1,
         });
         if (this.props.settings.showMachine)
             this.machineBounds.draw(this.drawCommands, {
@@ -1366,7 +1376,7 @@ class Workspace extends React.Component {
                     </div>
                 </div>
 
-                <VideoPort width={320} height={240} enabled={enableVideo && workspace.showWebcam} draggable="parent" />
+                <VideoPort width={320} height={240} enabled={enableVideo && workspace.showWebcam} draggable="parent" useCanvas={this.props.settings.toolVideoOMR} canvasProcess={this.props.settings.toolVideoOMR ? arucoProcess: null} />
                 <ImagePort width={320} height={240} enabled={workspace.showRasterPreview} draggable="parent" />
 
             </div>
@@ -1374,7 +1384,7 @@ class Workspace extends React.Component {
     }
 }
 Workspace = connect(
-    state => ({ camera: state.camera, gcode: state.gcode.content, workspace: state.workspace, settings: state.settings, enableVideo: (state.settings.toolVideoDevice !== null) }),
+    state => ({ camera: state.camera, gcode: state.gcode.content, workspace: state.workspace, settings: state.settings, enableVideo: ((state.settings.toolVideoDevice !== null) || (!!state.settings.toolWebcamUrl)) }),
     dispatch => ({
         dispatch,
         setG0Rate: v => dispatch(setWorkspaceAttrs({ g0Rate: v })),
