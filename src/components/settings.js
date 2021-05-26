@@ -264,7 +264,8 @@ class Settings extends React.Component {
                         <NumberField {...{ object: this.props.settings, field: 'dpiBitmap', setAttrs: setSettingsAttrs, description: 'Bitmap DPI', units: 'dpi' }} />
                     </SettingsPanel>
                     <SettingsPanel collapsible header="Gcode" eventKey="3" bsStyle="info" errors={this.state.errors}>
-                        
+                        <SelectField {...{ object: this.props.settings, field: 'gcodeGenerator', setAttrs: setSettingsAttrs, data: ['default', 'marlin'], defaultValue: 'default', description: 'GCode Generator', selectProps: { clearable: false } }} />
+
                         <TextField {...{ object: this.props.settings, field: 'gcodeStart', setAttrs: setSettingsAttrs, description: 'Gcode Start', rows: 5, style: { resize: "vertical" } }} />
                         <TextField {...{ object: this.props.settings, field: 'gcodeEnd', setAttrs: setSettingsAttrs, description: 'Gcode End', rows: 5, style: { resize: "vertical" } }} />
                         <TextField {...{ object: this.props.settings, field: 'gcodeHoming', setAttrs: setSettingsAttrs, description: 'Gcode Homing', rows: 5, style: { resize: "vertical" } }} />
@@ -278,7 +279,11 @@ class Settings extends React.Component {
                         <NumberField {...{ object: this.props.settings, field: 'gcodeToolTestPower', setAttrs: setSettingsAttrs, description: 'Tool Test Power', units: '%' }} />
                         <NumberField {...{ object: this.props.settings, field: 'gcodeToolTestDuration', setAttrs: setSettingsAttrs, description: 'Tool Test duration', units: 'ms' }} />
                         <h5 className="header">Gcode generation</h5>
-                        <NumberField {...{ object: this.props.settings, field: 'gcodeConcurrency', setAttrs: setSettingsAttrs, description: 'Gcode Generation threads', units: '' }} />
+                        <NumberField {...{ object: this.props.settings, field: 'gcodeConcurrency', setAttrs: setSettingsAttrs, description: 'Gcode Generation threads', units: '', info: Info(<p className="help-block">Higher number of threads demands powerful host computer, but increases performance on large files with lots of operations.</p>,"Gcode threads") }} />
+                        <NumberField {...{ object: this.props.settings, field: 'gcodeCurvePrecision', setAttrs: setSettingsAttrs, description: 'Gcode Curve Linearization factor', units: '', info: Info(<p className="help-block">
+                        Enter from 0.1 (Ultra High Precision - Slow) to 2.0 (Low Precision - Fast) to achieve different levels of curve to gcode performance
+                        </p>,"Gcode Linearization Factor")} } />
+                        
                     </SettingsPanel>
                     <SettingsPanel collapsible header="Application" eventKey="4" bsStyle="info" errors={this.state.errors}>
                         <h5 className="header">Grid</h5>
@@ -307,29 +312,38 @@ class Settings extends React.Component {
                     </SettingsPanel>
 
                     <Panel collapsible header="Camera" bsStyle="info" eventKey="6">
-                        <table width="100%"><tbody><tr>
-                            <td width="45%"><VideoDeviceField {...{ object: this.props.settings, field: 'toolVideoDevice', setAttrs: setSettingsAttrs, description: 'Video Device', disabled: !!this.props.settings['toolWebcamUrl']}} /></td>
-                            <td width="45%"><VideoResolutionField {...{ object: this.props.settings, field: 'toolVideoResolution', setAttrs: setSettingsAttrs, deviceId: this.props.settings['toolVideoDevice'] }} /></td>
 
-                        </tr></tbody></table>
+                        <div id="novideodevices" style={{ display: "none" }}>
+                            <h5 className="header">Video Device List Unavailable</h5>
+                            <small className="help-block">This may be due to running over an insecure connection, blocking in browser preferences, or other privacy protections.</small>
+                        </div>
+
+                        <div id="localvideodevices">
+                            <table width="100%"><tbody><tr>
+                                <td width="45%"><VideoDeviceField {...{ object: this.props.settings, field: 'toolVideoDevice', setAttrs: setSettingsAttrs, description: 'Video Device', disabled: !!this.props.settings['toolWebcamUrl']}} /></td>
+                                <td width="45%"><VideoResolutionField {...{ object: this.props.settings, field: 'toolVideoResolution', setAttrs: setSettingsAttrs, deviceId: this.props.settings['toolVideoDevice'] }} /></td>
+
+                            </tr></tbody></table>
+
+                            <ToggleField  {... { object: this.props.settings, field: 'toolVideoOMR', setAttrs: setSettingsAttrs, description: 'Activate OMR', info: Info(<p className="help-block">
+                            Enabling this, ARUCO markers will be recognized by floating camera port, allowing stock alignment. <Label bsStyle="warning">Experimental!</Label>
+                            </p>,"Optical Mark Recognition"), disabled:!this.props.settings['toolVideoDevice'] }} />
+
+                            <Collapse in={this.props.settings.toolVideoOMR}>
+                                <div>
+                                    <NumberField {...{ object: this.props.settings, field: 'toolVideoOMROffsetX', setAttrs: setSettingsAttrs, description: 'Camera offset X', units:'mm'  }} />
+                                    <NumberField {...{ object: this.props.settings, field: 'toolVideoOMROffsetY', setAttrs: setSettingsAttrs, description: 'Camera offset Y', units:'mm' }} />
+                                    <NumberField {...{ object: this.props.settings, field: 'toolVideoOMRMarkerSize', setAttrs: setSettingsAttrs, description: 'Marker size', units:'mm' }} />
+                                    <ArucoMarker />
+                                </div>
+                            </Collapse>
+                        </div>
+
+                        <hr/>
 
                         <VideoPort height={240} enabled={(this.props.settings['toolVideoDevice'] !== null) || (this.props.settings['toolWebcamUrl'])} />
 
                         <TextField   {... { object: this.props.settings, field: 'toolWebcamUrl', setAttrs: setSettingsAttrs, description: 'Webcam Url' }} disabled={this.props.settings['toolVideoDevice'] !== null} />
-                        <hr/>
-                        <ToggleField  {... { object: this.props.settings, field: 'toolVideoOMR', setAttrs: setSettingsAttrs, description: 'Activate OMR', info: Info(<p className="help-block">
-                        Enabling this, ARUCO markers will be recognized by floating camera port, allowing stock alignment. <Label bsStyle="warning">Experimental!</Label>
-                        </p>,"Optical Mark Recognition"), disabled:!this.props.settings['toolVideoDevice'] }} />
-
-                        <Collapse in={this.props.settings.toolVideoOMR}>
-                            <div>
-                                <NumberField {...{ object: this.props.settings, field: 'toolVideoOMROffsetX', setAttrs: setSettingsAttrs, description: 'Camera offset X', units:'mm'  }} />
-                                <NumberField {...{ object: this.props.settings, field: 'toolVideoOMROffsetY', setAttrs: setSettingsAttrs, description: 'Camera offset Y', units:'mm' }} />
-                                <NumberField {...{ object: this.props.settings, field: 'toolVideoOMRMarkerSize', setAttrs: setSettingsAttrs, description: 'Marker size', units:'mm' }} />
-                                <ArucoMarker />
-                            </div>
-                        </Collapse>
-
                         
                     </Panel>
 

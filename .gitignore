@@ -2,5 +2,5 @@ node_modules
 dist
 *.log
 .vscode
+.zip
 machine-profiles.json
-package-lock.json
